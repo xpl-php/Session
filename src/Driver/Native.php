@@ -1,25 +1,38 @@
 <?php
 
-namespace Phpf\Session\Driver;
+namespace xpl\Session\Driver;
+
+use xpl\Utility\Arr;
+use xpl\System\Server;
 
 class Native implements SessionDriverInterface {
 	
 	/**
 	 * If given array of cookie parameters, sets cookie parameters.
 	 */
-	public function __construct(array $cookieparams = array()) {
-			
-		ini_set('session.use_cookies', 1);
+	public function __construct(array $cookie_params = array()) {
 		
-		$cp = array_replace(array(
+		ini_set('session.use_only_cookies', 1);
+		
+		$params = array_replace(array(
 			'lifetime' => 86400*7,
 			'path' => '/',
-			'domain' => '.'.$_SERVER['HTTP_HOST'],
+			'domain' => null,
 			'secure' => false,
 			'httponly' => false,
-		), $cookieparams);
+		), $cookie_params);
 		
-		session_set_cookie_params($cp['lifetime'], $cp['path'], $cp['domain'], $cp['secure'], $cp['httponly']);
+		if (empty($params['domain'])) {
+			$params['domain'] = '.' . Server::getDomainName(Server::DOMAIN|Server::TLD);
+		}
+		
+		session_set_cookie_params(
+			$params['lifetime'], 
+			$params['path'], 
+			$params['domain'], 
+			$params['secure'], 
+			$params['httponly']
+		);
 	}
 	
 	/**
@@ -59,7 +72,7 @@ class Native implements SessionDriverInterface {
 	 * 
 	 * @return boolean True if session started, otherwise false.
 	 */
-	public function isStarted() {
+	public function started() {
 		return '' !== session_id();
 	}
 	
@@ -82,7 +95,7 @@ class Native implements SessionDriverInterface {
 	public function setId($id) {
 		
 		if ($this->isStarted()) {
-			throw new RuntimeException("Cannot set ID - session already started.");
+			throw new \RuntimeException("Cannot set ID once session has been started.");
 		}
 		
 		return session_id($id);
@@ -113,7 +126,8 @@ class Native implements SessionDriverInterface {
 	 * @return string Cookie if set, otherwise null.
 	 */
 	public function getCookie() {
-		return isset($_COOKIE[$this->getName()]) ? $_COOKIE[$this->getName()] : null;
+		$name = $this->getName();
+		return isset($_COOKIE[$name]) ? $_COOKIE[$name] : null;
 	}
 	
 	/**
@@ -123,9 +137,7 @@ class Native implements SessionDriverInterface {
 	 * @param mixed $default Value to return if session variable does not exist.
 	 */
 	public function get($var, $default = null) {
-		return array_key_exists($var, $_SESSION)
-			? $_SESSION[$var]
-			: $default;
+		return Arr::get($_SESSION, $var) ?: $default;
 	}
 	
 	/**
@@ -136,7 +148,7 @@ class Native implements SessionDriverInterface {
 	 * @return $this
 	 */
 	public function set($var, $val) {
-		$_SESSION[$var] = $val;
+		Arr::set($_SESSION, $var, $val);
 		return $this;
 	}
 	
@@ -146,8 +158,8 @@ class Native implements SessionDriverInterface {
 	 * @param string $var Name of session variable.
 	 * @return boolean Whether session variable exists.
 	 */
-	public function exists($var) {
-		return array_key_exists($var, $_SESSION);
+	public function has($var) {
+		return Arr::exists($_SESSION, $var);
 	}
 	
 	/**
@@ -157,38 +169,8 @@ class Native implements SessionDriverInterface {
 	 * @return $this
 	 */
 	public function remove($var) {
-		unset($_SESSION[$var]);
+		Arr::remove($_SESSION, $var);
 		return $this;
-	}
-	
-	/**
-	 * Adds a value to a group of items.
-	 * 
-	 * @param string $group Property name.
-	 * @param string $key Item key.
-	 * @param mixed $value Item value.
-	 * @return $this
-	 */
-	public function addToGroup($group, $key, $value) {
-		if (! isset($_SESSION[$group])) {
-			$_SESSION[$group] = array();
-		}
-		$_SESSION[$group][$key] = $value;
-		return $this;
-	}
-	
-	/**
-	 * Returns a value from a group of items.
-	 * 
-	 * @param string $group Group/property name.
-	 * @param string $key Item name.
-	 * @return mixed Item value if set, otherwise null.
-	 */
-	public function getFromGroup($group, $key) {
-		if (! isset($_SESSION[$group])) {
-			return null;
-		}
-		return isset($_SESSION[$group][$key]) ? $_SESSION[$group][$key] : null;
 	}
 	
 	/**
@@ -204,7 +186,7 @@ class Native implements SessionDriverInterface {
 	 * @return $this
 	 */
 	protected function unsetCookie() {
-			
+		
 		unset($_COOKIE[session_name()]);
 		
 		$p = session_get_cookie_params();

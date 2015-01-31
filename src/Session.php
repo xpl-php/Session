@@ -1,30 +1,23 @@
 <?php
 
-namespace Phpf\Session;
+namespace xpl\Session;
 
-use Phpf\Session\Driver\SessionDriverInterface;
+use xpl\Common\Singleton;
 
-class Session implements \ArrayAccess, \Countable {
+class Session implements SessionInterface 
+{
+	
+	use Singleton;
 	
 	protected $driver;
 	
 	/**
-	 * Constructor
-	 * @param iSessionDriver|null
-	 */
-	public function __construct(SessionDriverInterface $driver = null) {
-		if (isset($driver)) {
-			$this->setDriver($driver);
-		}
-	}
-	
-	/**
 	 * Sets the session driver
 	 * 
-	 * @param iSessionDriver $driver
+	 * @param SessionDriverInterface $driver
 	 * @return $this
 	 */
-	public function setDriver(SessionDriverInterface $driver) {
+	public function setDriver(Driver\SessionDriverInterface $driver) {
 		$this->driver = $driver;
 		return $this;
 	}
@@ -33,7 +26,12 @@ class Session implements \ArrayAccess, \Countable {
 	 * Start the session.
 	 * @return boolean
 	 */
-	public function start() {
+	public function start(array $cookie_params = array()) {
+		
+		if (! isset($this->driver)) {
+			$this->setDriver(new Driver\Native($cookie_params));
+		}
+		
 		return $this->driver->start();
 	}
 	
@@ -41,8 +39,8 @@ class Session implements \ArrayAccess, \Countable {
 	 * Whether session is started.
 	 * @return boolean
 	 */
-	public function isStarted() {
-		return $this->driver->isStarted();
+	public function started() {
+		return $this->driver->started();
 	}
 	
 	/**
@@ -115,8 +113,12 @@ class Session implements \ArrayAccess, \Countable {
 	 * @param string $var
 	 * @return boolean
 	 */
+	public function has($var) {
+		return $this->driver->has($var);
+	}
+	
 	public function exists($var) {
-		return $this->driver->exists($var);
+		return $this->has($var);
 	}
 	
 	/**
@@ -130,30 +132,6 @@ class Session implements \ArrayAccess, \Countable {
 	}
 	
 	/**
-	 * Adds an item to a named group (an array).
-	 * 
-	 * @param string $group Group name (an array if used with get(), etc.).
-	 * @param string $key Item name (key in array).
-	 * @param mixed $value Item value (array value).
-	 * @return $this;
-	 */
-	public function addToGroup($group, $key, $value) {
-		$this->driver->addToGroup($group, $key, $value);
-		return $this;
-	}
-	
-	/**
-	 * Returns an item from a named group.
-	 * 
-	 * @param string $group Group name.
-	 * @param string $key Item name.
-	 * @return mixed Item value if set, otherwise null.
-	 */
-	public function getFromGroup($group, $key) {
-		return $this->driver->getFromGroup($group, $key);
-	}
-	
-	/**
 	 * Adds an HTML flash notice to be displayed on next request.
 	 * 
 	 * When used in conjuction with renderNotices(), the items will
@@ -163,12 +141,8 @@ class Session implements \ArrayAccess, \Countable {
 	 * @return $this
 	 */
 	public function addNotice($markup) {
-		$this->addToGroup('flash_notices', mt_rand(), $markup);
+		$this->set('flash_notices.'.uniqid(), $markup);
 		return $this;
-	}
-	
-	public function hasNotices() {
-		return $this->exists('flash_notices');
 	}
 	
 	/**
@@ -177,12 +151,20 @@ class Session implements \ArrayAccess, \Countable {
 	 * @return string Notice HTML or empty string.
 	 */
 	public function renderNotices() {
-		$s = '';
-		if ($this->hasNotices()) {
-			$s = implode("\n", $this->get('flash_notices'));
+		$str = '';
+		
+		if ($this->has('flash_notices')) {
+				
+			$str = implode("\r\n", $this->get('flash_notices'));
+			
 			$this->remove('flash_notices');
 		}
-		return $s;
+		
+		return $str;
+	}
+	
+	public function hasNotices() {
+		return $this->has('flash_notices');
 	}
 	
 	/**
@@ -191,7 +173,7 @@ class Session implements \ArrayAccess, \Countable {
 	 * @return void
 	 */
 	public function offsetSet($index, $newval) {
-		$this->driver->set($index, $newval);
+		$this->set($index, $newval);
 	}
 
 	/**
@@ -199,7 +181,7 @@ class Session implements \ArrayAccess, \Countable {
 	 * @return mixed
 	 */
 	public function offsetGet($index) {
-		return $this->driver->get($index);
+		return $this->get($index);
 	}
 
 	/**
@@ -207,7 +189,7 @@ class Session implements \ArrayAccess, \Countable {
 	 * @return void
 	 */
 	public function offsetUnset($index) {
-		$this->driver->remove($index);
+		$this->remove($index);
 	}
 
 	/**
@@ -215,14 +197,7 @@ class Session implements \ArrayAccess, \Countable {
 	 * @return boolean
 	 */
 	public function offsetExists($index) {
-		return $this->driver->exists($index);
-	}
-	
-	/**
-	 * @return integer
-	 */
-	public function count() {
-		return $this->driver->count();
+		return $this->has($index);
 	}
 	
 	public function __get($var) {
@@ -234,11 +209,18 @@ class Session implements \ArrayAccess, \Countable {
 	}
 	
 	public function __isset($var) {
-		return $this->exists($var);
+		return $this->has($var);
 	}
 	
 	public function __unset($var) {
 		$this->remove($var);
+	}
+	
+	/**
+	 * @return integer
+	 */
+	public function count() {
+		return $this->driver->count();
 	}
 	
 }

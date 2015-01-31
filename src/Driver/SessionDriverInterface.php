@@ -1,14 +1,14 @@
 <?php
 
-namespace Phpf\Session\Driver;
+namespace xpl\Session\Driver;
 
 interface SessionDriverInterface extends \Countable {
 	
 	public function start();
 	
-	public function destroy();
+	public function started();
 	
-	public function isStarted();
+	public function destroy();
 	
 	public function getId();
 	
@@ -22,12 +22,8 @@ interface SessionDriverInterface extends \Countable {
 	
 	public function set($var, $val);
 	
-	public function exists($var);
+	public function has($var);
 	
 	public function remove($var);
-	
-	public function getFromGroup($group, $key);
-	
-	public function addToGroup($group, $key, $value);
 	
 }
